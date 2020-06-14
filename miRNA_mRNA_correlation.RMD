@@ -225,3 +225,101 @@ print(Ssmaller+Sbigger)
 print(Ssmaller)
 print(Sbigger)
 ```
+
+#Now the anaysis for the contrast of Asymptomatic horses in remission vs. healthy controls:
+
+#Load miRNA and mRNA count table
+```{r,fig.width=5,fig.height=6}
+mRNA<-read.table("/Users/matthias/R_DE_mirna_analysis/lung/mrna/10112017_gene_based_analysis/mRNA_norm_counts.txt",header=T)
+miRNA<-read.table("/Users/matthias/Downloads/miRComb/normalized_miRNA_counts_for_mircomb.txt",header=T)
+str(miRNA)
+str(mRNA)
+colnames(mRNA)<-colnames(miRNA)
+colnames(mRNA)
+colnames(miRNA)
+head(miRNA)
+head(mRNA)
+#log transform the normalized data + pseudocount of 1
+miRNA<-log2(miRNA+1)
+mRNA<-log2(mRNA+1)
+head(mRNA)
+head(miRNA)
+```
+
+#Select significant DE mRNAs
+```{r,fig.width=6,fig.height=6}
+DEmRNA<-read.table("/Users/matthias/Downloads/miRComb/genelist_SvA.txt",header=T)
+head(DEmRNA)
+dim(DEmRNA)
+#load BIomart conversion table with unique! names CXCL5 has to be added manually for ease of handling
+conversion_table<-read.table("/Users/matthias/Downloads/miRComb/conversion_table_S_A.txt",header=T)
+head(conversion_table)
+dim(conversion_table)
+conversion_table<-as.data.frame(conversion_table)
+conversion_table
+#Select relevant rows from expression matrix:
+mRNA_SvC<-mRNA[rownames(mRNA) %in% conversion_table[,2],]
+#Convert from human to horse IDs
+test<-conversion_table$Human_gene_name[match(rownames(mRNA_SvC),conversion_table[,2])]
+test
+rownames(mRNA_SvC)<-test
+mRNA_final<-mRNA_SvC
+#Prepare SvC significant miRNAs
+ 
+DEmirs<-c("hsa-miR-146b-5p","hsa-miR-135b-5p","hsa-miR-31-5p")
+DEmirs_horse<-c("eca-miR-146b-5p","eca-miR-135b","eca-miR-31")
+miRNA_SvC<-miRNA[rownames(miRNA) %in% DEmirs_horse,]
+miRNA_SvC
+rownames(miRNA_SvC)<-DEmirs
+dim(miRNA_SvC)
+miRNA_SvC
+rownames(miRNA_SvC)<-DEmirs
+
+#Create phentype table.
+x<-rep(1,times=19)
+y<-rep(1,times=19)
+pheno<-cbind(x,y)
+colnames(pheno)<-c("group","SvC")
+pheno<-as.data.frame(pheno)
+pheno$group[1:8]<-"C"
+pheno$group[9:13]<-"A"
+pheno$group[14:19]<-"S"
+rownames(pheno)<-colnames(miRNA_SvC)
+pheno
+pheno_SvC<-rbind(pheno[9:13,],pheno[14:19,])
+pheno_SvC$SvC[1:5]<-0
+pheno_SvC
+#remove asymptomatic columns from count matrices
+miRNA_SvC<-miRNA_SvC[,colnames(miRNA_SvC) %in% rownames(pheno_SvC)]
+mRNA_final<-mRNA_final[,colnames(mRNA_final) %in% rownames(pheno_SvC)]
+dim(mRNA_final)
+dim(miRNA_SvC)
+head(mRNA_final)
+head(miRNA_SvC)
+#start mirComb analysis
+data.obj<-new("corObject",dat.miRNA=as.matrix(miRNA_SvC),dat.mRNA=as.matrix(mRNA_final),pheno.miRNA=pheno_SvC,pheno.mRNA=pheno_SvC)
+str(data.obj)
+data.obj<-addSig(data.obj,"miRNA",manual=rownames(miRNA_SvC))
+data.obj<-addSig(data.obj,"mRNA",manual=rownames(mRNA_final))
+str(data.obj)
+data.obj<-addCorrelation(data.obj,alternative="less")
+
+#data.obj@pval[1:7,1:10]
+data.obj<-addNet(data.obj)
+head(data.obj@net)
+data(microCosm_v5_18)
+data(targetScan_v7.0_21)
+data(PITA_v6_11_TOP)
+data(miRDB_v5.0_21)
+data(miRSVR_aug10_17)
+data(targetScan_v6.2_18)
+data.obj<-addDatabase(data.obj,database=c("microCosm_v5_18","targetScan_v7.0_21","miRDB_v5.0_21","miRSVR_aug10_17","targetScan_v6.2_18"))
+data.obj@net
+data.obj<-correctPval(data.obj, pval="pval",method.adj="BH")
+data.obj
+idx<-(data.obj@net$adj.pval<0.05 & data.obj@net$dat.sum>0)
+data.obj@net[idx,]
+results<-data.obj@net[idx,]
+topTable(data.obj,"miRNA",names=TRUE,pval.cutoff=0.05,plot=TRUE)
+results<-as.data.frame(results)
+write.table(results,"AvC_correlations_table.txt",quote=F)
