@@ -1,0 +1,3 @@
+module add UHTS/Aligner/STAR/2.5.3a
+
+STAR --outFileNamePrefix $SEED --outFilterMultimapNmax 50 --outFilterMismatchNmax 4 --seedSearchStartLmax 25 --alignIntronMin 20 --alignIntronMax 1000000 --alignMatesGapMax 100000 --outFilterType BySJout --outSAMtype BAM SortedByCoordinate --outSAMstrandField intronMotif --outSAMattributes All --outTmpDir ./$SGE_TASK_ID --runThreadN 4 --sjdbGTFfeatureExon exon --sjdbGTFtagExonParentTranscript Parent  --sjdbGTFtagExonParentGene gene --sjdbGTFfile ref_EquCab3.0_top_level.gff3 --genomeDir /data/references/horse/EquCab3/STARIdx --readFilesIn ../../raw_data/${SEED}_combined_R1.fastq ../../raw_data/${SEED}_combined_R2.fastq
