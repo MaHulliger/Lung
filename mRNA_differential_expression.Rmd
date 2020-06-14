@@ -1,0 +1,431 @@
+---
+title: "Streamlined mRNA DE Lung tissue"
+author: "Matthias Hulliger"
+date: "5/6/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+#load multiplot function
+multiplot <- function(..., plotlist=NULL, file, cols=1, layout=NULL) {
+  require(grid)
+
+  # Make a list from the ... arguments and plotlist
+  plots <- c(list(...), plotlist)
+
+  numPlots = length(plots)
+
+  # If layout is NULL, then use 'cols' to determine layout
+  if (is.null(layout)) {
+    # Make the panel
+    # ncol: Number of columns of plots
+    # nrow: Number of rows needed, calculated from # of cols
+    layout <- matrix(seq(1, cols * ceiling(numPlots/cols)),
+                    ncol = cols, nrow = ceiling(numPlots/cols))
+  }
+
+ if (numPlots==1) {
+    print(plots[[1]])
+
+  } else {
+    # Set up the page
+    grid.newpage()
+    pushViewport(viewport(layout = grid.layout(nrow(layout), ncol(layout))))
+
+    # Make each plot, in the correct location
+    for (i in 1:numPlots) {
+      # Get the i,j matrix positions of the regions that contain this subplot
+      matchidx <- as.data.frame(which(layout == i, arr.ind = TRUE))
+
+      print(plots[[i]], vp = viewport(layout.pos.row = matchidx$row,
+                                      layout.pos.col = matchidx$col))
+    }
+  }
+}
+
+```
+#Loading phenotype data
+```{r}
+library(DESeq2)
+colData<-read.table("colData7.txt",header = T)
+colData$Extraction_batch<-as.factor(colData$Extraction_batch)
+colData$gelding<-as.factor(colData$gelding)
+colData$symptomes<-relevel(colData$symptomes,"none","Asymptomatic","Symptomatic")
+colData
+str(colData)
+```
+
+
+#Load count data
+```{r,fig.width=10,fig.height=6}
+DESeq2Table <- DESeqDataSetFromHTSeqCount(sampleTable = colData,directory= "/Users/matthias/R_DE_mirna_analysis/lung/mrna/10112017_gene_based_analysis/counting",design = ~ gelding+Extraction_batch+symptomes)
+print(DESeq2Table)
+summary(DESeq2Table)
+colnames(DESeq2Table)
+dds<-DESeq2Table
+ design(dds)
+ summary(dds)
+ dim(dds)
+# prefiltering
+ idx<-rowMeans(counts(dds)>0)>=0.9
+ dds<-dds[idx,]
+ dim(dds)
+ dds<-DESeq(dds)
+ resS<-results(dds,contrast=c("symptomes","Symptomatic","none"),alpha=0.05)
+ summary(resS)
+ sigS<-subset(resS,resS$padj<0.05)
+ summary(sigS)
+  head(sigS[order(sigS$padj),])
+  sigSord<-sigS[order(abs(sigS$log2FoldChange),decreasing=T),]
+  sigSordpvalue<-sigS[order(abs(sigS$pvalue),decreasing=F),]
+  head(sigSord,n=11)
+ rownames(sigSord)
+
+ write.table(rownames(sigSord),"DEgenes_SvC.txt",quote = F)
+ 
+ resA<-results(dds,contrast=c("symptomes","Asymptomatic","none"),alpha=0.05)
+ summary(resA)
+ sigA<-subset(resA,resA$padj<0.05)
+ summary(sigA)
+ head(sigA[order(sigA$padj),])
+ sigAord<-sigA[order(abs(sigA$log2FoldChange),decreasing=T),]
+ head(sigAord,n=11)
+ rownames(sigAord)
+ write.table(rownames(sigAord),"DEgenes_AvC.txt",quote = F)
+ 
+ resSvA<-results(dds,contrast=c("symptomes","Symptomatic","Asymptomatic"),alpha=0.05)
+ summary(resSvA)
+ sigSvA<-subset(resSvA,resSvA$padj<0.05)
+summary(sigSvA)
+ sigSvAord<-sigSvA[order(abs(sigSvA$log2FoldChange),decreasing=T),]
+ head(sigSvAord,n=11)
+ rownames(sigSvAord)
+ write.table(rownames(sigSvAord),"DEgenes_SvA.txt",quote = F)
+ SvAup<-rownames(subset(sigSvAord,sigSvAord$log2FoldChange>0))
+  SvAdown<-rownames(subset(sigSvAord,sigSvAord$log2FoldChange<0))
+   Sup<-rownames(subset(sigSord,sigSord$log2FoldChange>0))
+   Sdown<-rownames(subset(sigSord,sigSord$log2FoldChange<0))
+   Adown<-rownames(subset(sigAord,sigAord$log2FoldChange<0))
+   Aup<-rownames(subset(sigAord,sigAord$log2FoldChange>0))
+  SvAup
+  write.table(SvAup,"SvAup.txt",quote=F)
+  write.table(SvAdown,"SvAdown.txt",quote=F)
+  write.table(Sup,"Sup.txt",quote=F)
+  write.table(Sdown,"Sdown.txt",quote=F)
+  write.table(Aup,"Aup.txt",quote=F)
+  write.table(Adown,"Adown.txt",quote=F)
+  sigS["FCER1A",]
+  sigS["MS4A2",]
+  resSvA["MS4A2",]
+  resSvA["FCER1A",]
+
+ A<-subset(resA,resA$padj<=0.05)
+A<-A[order(A$padj),]
+  head(A,n=11)
+  write.table(A,"AvC-DE_mrna.csv")
+   SvAr<-subset(resSvA,resSvA$padj<=0.05)
+SvAr<-SvAr[order(SvAr$padj),]
+  head(SvAr,n=11)
+  write.table(SvAr,"DEgenes_SvA.csv")
+#  caluclate median & mean log 2 fold change:
+    dim(sigSord)
+  S_up<-head(subset(sigSord,sigSord$log2FoldChange>0))
+ S_down<-head(subset(sigSord,sigSord$log2FoldChange<0))
+     dim(sigA)
+  A_up<-head(subset(sigA,sigA$log2FoldChange>0))
+ A_down<-head(subset(sigA,sigA$log2FoldChange<0))
+  SvA_up<-head(subset(sigSvA,sigSvA$log2FoldChange>0))
+ SvA_down<-head(subset(sigSvA,sigSvA$log2FoldChange<0))
+ mean(A_up$log2FoldChange)
+sd(A_up$log2FoldChange)
+ mean(A_down$log2FoldChange)
+sd(A_down$log2FoldChange)
+ mean(S_up$log2FoldChange)
+sd(S_up$log2FoldChange)
+ mean(S_down$log2FoldChange)
+sd(S_down$log2FoldChange)
+  sd(A_down$log2FoldChange)
+ mean(SvA_up$log2FoldChange)
+sd(SvA_up$log2FoldChange)
+ mean(SvA_down$log2FoldChange)
+sd(SvA_down$log2FoldChange)
+  
+ #plotLogFold<-function(sig,x,y,z){
+  #produce a horizontal barplot with the log2 fold changes of the top down-
+   #and upregulated genes/miRNAs. Input parametersA: sig : filtered results table by deseq2 (padj<0.05). n : number of n top up-and down regulated genes to plot. y and z are the plot relations according to the x axes (how plotting space is distributed according to the scale of the x axes).
+ S_up<-head(subset(sigSord,sigSord$log2FoldChange>0),n=20)
+ S_down<-head(subset(sigSord,sigSord$log2FoldChange<0),n=20)
+ #S_up
+ #S_down
+ library(gridExtra)
+library(grid)
+library(ggplot2)
+library(lattice)
+ S_up<-as.data.frame(S_up)
+ #S_up
+ S_up<-S_up[order(S_up$log2FoldChange,decreasing=T),]
+ #S_up
+S_up$padj<-format(S_up$padj,scientific=T,digits=2)
+ S_down<-as.data.frame(S_down)
+ S_down<-S_down[order(abs(S_down$log2FoldChange),decreasing=T),]
+ S_down$padj<-format(S_down$padj,scientific=T,digits=2)
+ 
+p1<-ggplot(S_down, aes(x = reorder(row.names(S_down),-S_down$log2FoldChange), S_down$log2FoldChange)) +
+        geom_bar(stat = "identity") + theme_bw(base_size=19)+labs(y="Log 2 Fold Change",x="Downregulated genes")+ 
+        coord_flip(ylim=c(0,-6.6)) + theme(axis.text=element_text(size=19,color="black"),axis.title.y=element_blank(),plot.title = element_text(size = 15, face = "bold",hjust = 0.5))+
+        geom_text(aes(label = S_down$padj), nudge_y = -0.9, color = "black")+ ggtitle("Top downregulated genes")+ scale_y_continuous(breaks=c(0,-2,-4,-6),expand =c(0,0))+ geom_text(aes(label = ""), nudge_y = -0.2 )
+
+p2<-ggplot(S_up, aes(x = reorder(row.names(S_up),S_up$log2FoldChange), S_up$log2FoldChange)) + theme_bw(base_size = 19)+
+        geom_bar(stat = "identity") + scale_x_discrete(position = "top",expand = c(0,0))+  labs(y="Log 2 Fold Change",x="Upregulated genes")+ 
+        coord_flip(ylim=c(0,7.8)) + theme(axis.text=element_text(size=19,color="black"),axis.title.y=element_blank(),plot.title = element_text(size = 15, face = "bold",hjust = 0.5))+
+        geom_text(aes(label = S_up$padj), nudge_y = +0.8, color = "black")+ ggtitle("Top upregulated genes")+scale_y_continuous(expand = c(0,0))+ geom_text(aes(label = ""), nudge_y = +0.2 )
+        library(cowplot)
+
+  plot_grid(p1, p2,align="h",rel_widths = c(1,1.05))
+  r<-plot_grid(p1, p2,align="h",rel_widths = c(1.05,1))
+  ggsave("EvClogPlot.tiff",r,device="tiff",dpi=300)
+
+  #plot for asymptomatic vs control with top 15 genes
+  
+  S_up<-head(subset(sigAord,sigAord$log2FoldChange>0),n=20)
+ S_down<-head(subset(sigAord,sigAord$log2FoldChange<0),n=20)
+ S_up<-as.data.frame(S_up)
+ #S_up
+ S_up<-S_up[order(S_up$log2FoldChange,decreasing=T),]
+ #S_up
+S_up$padj<-format(S_up$padj,scientific=T,digits=2)
+ S_down<-as.data.frame(S_down)
+ S_down<-S_down[order(abs(S_down$log2FoldChange),decreasing=T),]
+ S_down$padj<-format(S_down$padj,scientific=T,digits=2)
+ 
+p1<-ggplot(S_down, aes(x = reorder(row.names(S_down),-S_down$log2FoldChange), S_down$log2FoldChange)) +
+        geom_bar(stat = "identity") + theme_bw(base_size=19)+labs(y="Log 2 Fold Change",x="Downregulated genes") + theme(axis.text=element_text(size=19,color="black"),axis.title.y=element_blank(),plot.title = element_text(size = 15, face = "bold",hjust = 0.5))+
+        geom_text(aes(label = S_down$padj), nudge_y = -0.7, color = "black")+ ggtitle("Top downregulated genes")+ scale_y_continuous(expand =c(0,0))+ geom_text(aes(label = ""), nudge_y = +1 )+
+        coord_flip(ylim=c(0,-5.3))
+
+p2<-ggplot(S_up, aes(x = reorder(row.names(S_up),S_up$log2FoldChange), S_up$log2FoldChange)) + theme_bw(base_size = 19)+
+        geom_bar(stat = "identity") + scale_x_discrete(position = "top",expand = c(0,0))+  labs(y="Log 2 Fold Change",x="Upregulated genes")+ 
+        coord_flip() + theme(axis.text=element_text(size=19,color="black"),axis.title.y=element_blank(),plot.title = element_text(size = 15, face = "bold",hjust = 0.5))+
+        geom_text(aes(label = S_up$padj), nudge_y = +0.5, color = "black")+ ggtitle("Top upregulated genes") +geom_text(aes(label = ""), nudge_y = +1.2 )+ylim(0,4.5)+scale_y_continuous(expand = c(0,0))
+        library(cowplot)
+
+  plot_grid(p1, p2,align="h",rel_widths = c(1.05,1))
+  q<-plot_grid(p1, p2,align="h",rel_widths = c(1.05,1))
+ ggsave("RvClogPlot.tiff",q,device="tiff",dpi=300)
+  #plot for symptomatic vs asymptomatic  with top 20 genes
+  
+  S_up<-head(subset(sigSvAord,sigSvAord$log2FoldChange>0),n=20)
+ S_down<-head(subset(sigSvAord,sigSvAord$log2FoldChange<0),n=20)
+ S_up<-as.data.frame(S_up)
+ #S_up
+ S_up<-S_up[order(S_up$log2FoldChange,decreasing=T),]
+ #S_up
+S_up$padj<-format(S_up$padj,scientific=T,digits=2)
+ S_down<-as.data.frame(S_down)
+ S_down<-S_down[order(abs(S_down$log2FoldChange),decreasing=T),]
+ S_down$padj<-format(S_down$padj,scientific=T,digits=2)
+ 
+p1<-ggplot(S_down, aes(x = reorder(row.names(S_down),-S_down$log2FoldChange), S_down$log2FoldChange)) +
+        geom_bar(stat = "identity") + theme_bw(base_size=18)+labs(y="Log 2 Fold Change",x="Downregulated genes")+theme(axis.text=element_text(size=18,color="black"),axis.title.y=element_blank(),plot.title = element_text(size = 13, face = "bold"))+
+        geom_text(aes(label = S_down$padj), nudge_y = -0.9, color = "black")+ ggtitle("Top downregulated genes")+ scale_y_continuous(expand =c(0,0),breaks=seq(0,-6,-2))+ geom_text(aes(label = ""), nudge_y = +1 )+coord_flip(ylim=c(0,-6))
+
+p2<-ggplot(S_up, aes(x = reorder(row.names(S_up),S_up$log2FoldChange), S_up$log2FoldChange)) + theme_bw(base_size = 18)+
+        geom_bar(stat = "identity") + scale_x_discrete(position = "top",expand = c(0,0))+  labs(y="Log 2 Fold Change",x="Upregulated genes")+ 
+        coord_flip(ylim=c(0,11.2)) + theme(axis.text=element_text(size=18,color="black"),axis.title.y=element_blank(),plot.title = element_text(size = 13, face = "bold",hjust = 0.5))+
+        geom_text(aes(label = S_up$padj), nudge_y = +0.9, color = "black")+ ggtitle("Top upregulated genes") +geom_text(aes(label = ""), nudge_y = +1 )+scale_y_continuous(expand = c(0,0),breaks = seq(0,11,2))
+        library(cowplot)
+
+  plot_grid(p1, p2,align="h",rel_widths = c(1,1.3))
+  p<-plot_grid(p1, p2,align="h",rel_widths = c(1,1.3))
+ ggsave("EvRlogPlot.tiff",p,device="tiff",dpi=300)
+
+ 
+sessionInfo()
+dim(sigS)
+head(sigS)
+head(rownames(sigS))
+write.table(rownames(sigS),"DEG_SvC_ECab3.txt")
+dim(sigA)
+head(sigA)
+head(rownames(sigA))
+write.table(rownames(sigA),"DEG_AvC_ECab3.txt")
+dim(sigSvA)
+head(sigSvA)
+head(rownames(sigSvA))
+write.table(rownames(sigSvA),"DEG_SVA_ECab3.txt")
+mRNA_norm_counts<-counts(dds,normalized=TRUE)
+str(mRNA_norm_counts)
+write.table(mRNA_norm_counts,"mRNA_norm_counts.txt")
+
+
+
+```
+
+#plot top 10 up and down in each group:
+name<-"Boxplots_counts_DEG"
+ending<-".pdf"
+library("ggpubr")
+library("ggsignif")
+for( mirna in rownames(head(sigSordpvalue,n=20))){ #for all sign. DE. microRNAs do
+filename<-paste(name,mirna,ending,sep="")
+   mirna_counts<-plotCounts(dds, gene=mirna, intgroup="symptomes",returnData = TRUE)
+   padj<-resSvA[mirna,]$padj
+   log2fc<-resSvA[mirna,]$log2FoldChange
+   log2fc<-round(log2fc,2)
+    if(padj>0.001){
+      padj<-round(padj,3)} else{
+        padj<-format(padj,scientific=TRUE,digits = 3)
+      }
+ p<-ggerrorplot(mirna_counts, x = "symptomes", y = "count", 
+               desc_stat = "mean_sd", color = "red",
+               add = "jitter", add.params = list(color = "black",size=6),title = paste("",mirna,"\n (log2FC = ",log2fc,")"),xlab = "Condition",ylab="DESeq2 normalized read counts",size=1)+theme(plot.title = element_text(hjust = 0.5,size=33,face="bold"),axis.title=element_text(size=25,face="bold"),axis.text=element_text(size=16,colour="black",face="bold"),panel.border = element_rect(size=1.5,fill=NA))+geom_signif(comparisons = list(c("Symptomatic","Asymptomatic")),map_signif_level=FALSE,annotations=paste("P = ",padj),textsize=5.5)+ scale_x_discrete(labels=c("Control","Remission","Exacerbation"))
+#print(mirna_counts)
+print(p)}
+#ggsave(filename,p)}
+```
+
+
+```{r,fig.width=8,fig.height=8}
+vsd <- vst(dds, blind=FALSE)
+mat<-assay(vsd)
+project.pca <- prcomp(t(mat))
+summary(project.pca)
+project.pca.proportionvariances <- ((project.pca$sdev^2) / (sum(project.pca$sdev^2)))*100
+#Plots scatter plot for PC 1 and 2
+plot(project.pca$x, type="n", main="Principal components analysis plot; miRNA expression",xlab=paste("PC1, ", round(project.pca.proportionvariances[1], 2), "%"), ylab=paste("PC2, ", round(project.pca.proportionvariances[2], 2), "%"),cex=1.3,cex.lab=1.3)
+points(project.pca$x, col=c("#000000","#009E73","#CC79A7"), pch=16, cex=3.5)
+legend("topright", legend = levels(colData$symptomes), pch=16,title="Condition",col=c("#000000","#009E73","#CC79A7"),cex=1.5)
+
+
+
+library(limma)
+vsd <- varianceStabilizingTransformation(dds)
+mat<-assay(vsd)
+project.pca <- prcomp(t(mat))
+summary(project.pca)
+project.pca.proportionvariances <- ((project.pca$sdev^2) / (sum(project.pca$sdev^2)))*100
+
+barplot(project.pca.proportionvariances, cex.names=1, xlab=paste("Principal component (PC), 1-", length(project.pca$sdev)), ylab="Proportion of variation (%)", main="Scree plot", ylim=c(0,100))
+
+#Plots scatter plot for PC 1 and 2
+plot(project.pca$x, type="n", main="Principal components analysis plot", xlab=paste("PC1, ", round(project.pca.proportionvariances[1], 2), "%"), ylab=paste("PC2, ", round(project.pca.proportionvariances[2], 2), "%"))
+points(project.pca$x, col=colData$symptomes, pch=16, cex=2.5)
+head(project.pca$x)
+legend("topleft",legend=colData$symptomes,
+       col=c("red", "blue"), lty=1:2, cex=0.8)
+PCAscores<-project.pca$x
+PCAcolors <- c("black","blue","magenta")[as.integer(colData$symptomes)]
+tiff(file="PCA_mrna.tiff",
+width=7, height=7, units="in", res=100)
+p<-plot(PCAscores[,1:2],  # x and y data
+     pch=21,           # point shape
+     col=PCAcolors,    # point border color
+     bg=PCAcolors,     # point color
+     cex=2.5,          # point size
+     main="PCA plot mRNA expression",    # title of plot
+     xlab=paste("PC1, ", round(project.pca.proportionvariances[1], 2), "%"),  ylab=paste("PC2, ", round(project.pca.proportionvariances[2], 2), "%"),
+     cex.lab=1.5
+)
+legend("topright",                                # position of legend
+       legend=c("Controls","Remission","Exacerbation"),                       # legend display
+       pch=21,                                    # point shape
+       pt.bg= c("black","blue","magenta"),    # point colors
+       pt.cex=1.5,                                # point size
+       col =  c("black","blue","magenta")  )  # point border color
+dev.off()
+
+```
+```{r,fig.width=6.5,fig.height=7.2}
+library(ggrepel)
+genes<-as.data.frame(resS)
+resS$gene<-rownames(resS)
+genes$Significant <- ifelse(genes$padj < 0.05, "FDR < 0.05", "Not Sig")
+p<-ggplot(genes, aes(x = log2FoldChange, y = -log10(pvalue))) + geom_point(aes(color = Significant,size=10)) + scale_color_manual(values = c("red", "grey")) + theme_bw(base_size = 11) + theme(legend.position = "bottom",axis.title = element_text(size = 20)) 
+p <- p + labs(title = "Volcano Plot exacerbation vs. controls")+theme(text = element_text(size = 20))
+p
+ggsave("volcano_SvC.tiff",p,device="tiff",dpi=300)
+
+
+genes<-as.data.frame(resSvA)
+resSvA$gene<-rownames(resSvA)
+genes$Significant <- ifelse(genes$padj < 0.05, "FDR < 0.05", "Not Sig")
+p<-ggplot(genes, aes(x = log2FoldChange, y = -log10(pvalue))) + geom_point(aes(color = Significant,size=10)) + scale_color_manual(values = c("red", "grey")) + theme_bw(base_size = 11) + theme(legend.position = "bottom",axis.title = element_text(size = 20)) 
+p <- p + labs(title = "Volcano Plot exacerbation vs. remission")+theme(text = element_text(size = 20))
+p
+ggsave("volcano_SvA.tiff",p,device="tiff",dpi=300)
+
+genes<-as.data.frame(resA)
+resA$gene<-rownames(resA)
+genes$Significant <- ifelse(genes$padj < 0.05, "FDR < 0.05", "Not Sig")
+p<-ggplot(genes, aes(x = log2FoldChange, y = -log10(pvalue))) + geom_point(aes(color = Significant,size=10)) + scale_color_manual(values = c("red", "grey")) + theme_bw(base_size = 11) + theme(legend.position = "bottom",axis.title = element_text(size = 20))
+p <- p + ggtitle("Volcano Plot remission vs. cotrols")+theme(text = element_text(size = 20))
+p
+ggsave("volcano_AvC.tiff",p,device="tiff",dpi=300)
+
+library(dplyr)
+ resS$gene<-NULL
+ head(resS)
+#MA-plots
+
+p<-ggmaplot((as.data.frame(resS)), main = expression("MA-Plot exacerbation vs. controls"),
+   fdr = 0.05,fc=0.0, size = 4, top = 0,
+   palette = c("#B31B21", "#1465AC", "gray"),legend = "top", 
+   ggtheme = ggplot2::theme_minimal())
+q<-p+theme(text = element_text(size = 20))
+q
+ggsave("MAplot_SvC.tiff",q,device="tiff",dpi=300)
+
+p<-ggmaplot(resA, main = expression("MA-Plot remission vs. controls"),
+   fdr = 0.05,fc = 0.0, size = 4, top = 0,
+   palette = c("#B31B21", "#1465AC", "gray"),
+   genenames = as.vector(resS$name),
+   legend = "top", 
+   font.label = c("bold", 13),
+   font.legend = "bold",
+   font.main = "bold",
+  select.top.method = c("padj","fc"),
+   ggtheme = ggplot2::theme_minimal())
+q<-p+theme(text = element_text(size = 20))
+ggsave("MAplot_AvC.tiff",q,device="tiff",dpi=300)
+q
+
+p<-ggmaplot(resSvA, main = expression("MA-Plot exacerbation vs. remission"),
+   fdr = 0.05, fc = 0.0,size = 4, top = 0,
+   palette = c("#B31B21", "#1465AC", "gray"),
+   genenames = as.vector(resS$name),
+   legend = "top",
+   font.label = c("bold", 13),
+   font.legend = "bold",
+   font.main = "bold",
+   alpha = 0.01,
+    select.top.method = c("padj","fc"),
+   ggtheme = ggplot2::theme_minimal())
+q<-p+theme(text = element_text(size = 20)) 
+ggsave("MAplot_SvA.tiff",q,device="tiff",dpi=300)
+q
+
+p<-ggplot(as.data.frame(resS), aes(x=pvalue)) + 
+  geom_histogram(color="black", fill="grey")+ theme_classic()+
+  ggtitle("Exacerbation vs. Controls")
+q<-p+ theme(text = element_text(size = 20))
+ggsave("pvalhist_SvC.tiff",q,device="tiff",dpi=300)
+q
+
+p<-ggplot(as.data.frame(resA), aes(x=pvalue)) + 
+  geom_histogram(color="black", fill="grey")+ theme_classic()+
+  ggtitle("Remission vs. Controls")
+q<-p+ theme(text = element_text(size = 20)) 
+ggsave("pvalhist_AvC.tiff",q,device="tiff",dpi=300)
+q
+
+p<-ggplot(as.data.frame(resSvA), aes(x=pvalue)) + 
+  geom_histogram(color="black", fill="grey")+ theme_classic()+
+  ggtitle("Exacerbation vs. Remission")
+q<-p+ theme(text = element_text(size = 20)) 
+ggsave("pvalhist_SvA.tiff",q,device="tiff",dpi=300)
+q
+```
+
+
+```
