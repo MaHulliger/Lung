@@ -1,0 +1,316 @@
+---
+title: "lung_mirna_differential_expression_analysis"
+author: "Matthias Hulliger"
+date: "6/13/2020"
+output: html_document
+---
+#Loading phenotype data
+```{r}
+library(DESeq2)
+colData<-read.table("/Users/matthias/Downloads/victor_whole_blood/pdfs_lung_mirna/colData7.txt",header = T)
+colData$Extraction_batch<-as.factor(colData$Extraction_batch)
+colData$gelding<-as.factor(colData$gelding)
+colData$symptomes<-relevel(colData$symptomes,"none","Asymptomatic","Symptomatic")
+colData
+str(colData)
+```
+##Define function to clean the miRNA count table (remove duplicates, select columns etc.)
+```{r}
+# This file defines a function that reads in a mirdeep2 count file and removes duplicate mirnas
+clean_mirna_data <-function(filepath){
+  #this function reads in a file (mirdeep2 quantifier output) and removes duplicate miRNAs (keeping the highest value), and stringent filtering
+  library(data.table)
+  library(magrittr)
+  library(dplyr)
+  counts <- read.table(filepath,sep="\t",header=TRUE,row.names=NULL)
+  no_dups<-counts[which(counts$read_count == ave(counts$read_count,counts$miRNA,FUN=function(x) max(x))),]
+  no_dups<-no_dups[!duplicated(no_dups$miRNA),]
+  rownames(no_dups)<-no_dups$miRNA
+  t1<-no_dups[,!(colnames(no_dups) %like% 'norm')]
+  t1<-t1[,-(1:4)]
+  stringent_filtered<-t1[(rowMeans(t1>0)>=0.9),]
+  return(stringent_filtered)}
+```
+#Load count data
+```{r}
+#countData<-read.table(,header=TRUE,row.names=NULL,sep="\t")
+#counts<-clean_mirna_data("~/R_DE_mirna_analysis/lung/miRNAs_expressed_all_samples_1497192212.csv")  #that's the run with equcab2
+counts<-clean_mirna_data("/Users/matthias/Downloads/victor_whole_blood/pdfs_lung_mirna/count_table_5cutoff_new.csv")
+dim(counts)
+head(counts)
+sum(duplicated(rownames(counts)))
+counts<-counts[,(colnames(counts) %in% colData$codes)]
+head(counts)
+dim(counts)
+colnames(counts)
+
+#check for duplicated rows
+counts[duplicated(counts),]
+#remove novel miRNAs with exactly same counts
+dups<-c("eca-miR-chr11_1979","eca-miR-chr15_8715","eca-miR-chr1_13543")
+counts<-counts[!rownames(counts) %in% dups,]
+counts[duplicated(counts),]
+```
+#Run DESeq2
+```{r}
+ DESeq2Table<-DESeqDataSetFromMatrix(countData = counts,colData = colData, design=~gelding+Extraction_batch+symptomes)
+print(DESeq2Table)
+summary(DESeq2Table)
+colnames(DESeq2Table)
+dds2<-DESeq2Table
+dds2<-DESeq(dds2)
+ design(dds2)
+ summary(dds2)
+ dim(dds2)
+# prefiltering
+ dds2<-DESeq(dds2)
+ resS<-results(dds2,contrast=c("symptomes","Symptomatic","none"),alpha=0.05)
+ summary(resS)
+ sigS<-subset(resS,resS$padj<0.05)
+  head(sigS[order(sigS$padj),],n=8)
+  sigSord<-sigS[order(sigS$padj),]
+ rownames(sigSord)
+ 
+ resA<-results(dds2,contrast=c("symptomes","Asymptomatic","none"),alpha=0.05)
+ summary(resA)
+ sigA<-subset(resA,resA$padj<0.05)
+ sigA
+ sigAord<-sigA[order(sigA$padj),]
+ rownames(sigAord)
+ 
+ resSvA<-results(dds2,contrast=c("symptomes","Symptomatic","Asymptomatic"),alpha=0.05)
+ summary(resSvA)
+ sigSvA<-subset(resSvA,resSvA$padj<0.05)
+ head(sigSvA[order(sigSvA$padj),])
+ sigSvAord<-sigSvA[order(sigSvA$padj),]
+ rownames(sigSvAord)
+ head(sigAord,n=20)
+ sigSord
+ for (mirna in rownames(sigSvA)){
+ plotCounts(dds2, gene=mirna, intgroup="symptomes")
+ }
+write.table(sigSord,"sigSord.csv")
+write.table(sigAord,"sigAord.csv")
+write.table(sigSvAord,"sigAVSord.csv")
+```
+
+#Introduce a custom count plotting function
+```{r}
+countPlots<-function(dds,sigDF,condition1,condition2){
+  #this function plots count Plots for all genes/miRNAs in the given DF (sigDF;e.G. filtered results table by DESeq2). Condition1 and Condition 2 define the comparison of interest used for differential expression e.g. Symptomatic vs Asymptomatic. As listed in the factor in the phenotype data.
+name<-"Publication_Boxplots_counts_"
+ending<-".pdf"
+library("ggpubr")
+library("ggsignif")
+for( mirna in rownames(sigDF)){ #for all sign. DE. microRNAs do
+filename<-paste(name,mirna,ending,sep="")
+   mirna_counts<-plotCounts(dds2, gene=mirna, intgroup="symptomes",returnData = TRUE)
+   padj<-sigDF[mirna,]$padj
+   log2fc<-sigDF[mirna,]$log2FoldChange
+   log2fc<-round(log2fc,2)
+    if(padj>0.001){
+      padj<-round(padj,3)} else{
+        padj<-format(padj,scientific=TRUE,digits = 3)
+      }
+ p<-ggerrorplot(mirna_counts, x = "symptomes", y = "count", 
+               desc_stat = "mean_sd", color = "red",
+               add = "jitter", add.params = list(color = "black",size=6),title = paste("",mirna,"\n (log2FC = ",log2fc,")"),xlab = "Condition",ylab="DESeq2 normalized read counts",size=1)+theme(plot.title = element_text(hjust = 0.5,size=23,face="bold"),axis.title=element_text(size=25,face="bold"),axis.text=element_text(size=18,colour="black",face="bold"),panel.border = element_rect(size=1.5,fill=NA))+geom_signif(comparisons = list(c(condition1,condition2)),map_signif_level=FALSE,annotations=paste("P = ",padj),textsize=5.5)+ scale_x_discrete(labels=c("Control","Remission","Exacerbation"))
+print(p)
+ggsave(filename,p)}}
+```
+
+```{r,fig.width=6.5,fig.height=7.2}
+countPlots(dds2,sigSord,"Symptomatic","none")
+```
+# Count plots: Asymptomatic vs Controls
+```{r,fig.width=6.5,fig.height=7.2}
+countPlots(dds2,sigAord,"Asymptomatic","none")
+```
+ # Count plots: Asymptomatic vs Controls
+```{r,fig.width=6.5,fig.height=7.2}
+countPlots(dds2,sigSvAord,"Symptomatic","Asymptomatic")
+
+normcounts<-counts(dds2,normalized=T)
+write.table(normcounts,"/Users/matthias/Downloads/miRComb/normalized_miRNA_counts_for_mircomb.txt")
+library(limma)
+vsd <- varianceStabilizingTransformation(dds2)
+mat<-assay(vsd)
+project.pca <- prcomp(t(mat))
+summary(project.pca)
+project.pca.proportionvariances <- ((project.pca$sdev^2) / (sum(project.pca$sdev^2)))*100
+
+barplot(project.pca.proportionvariances, cex.names=1, xlab=paste("Principal component (PC), 1-", length(project.pca$sdev)), ylab="Proportion of variation (%)", main="Scree plot", ylim=c(0,100))
+
+#Plots scatter plot for PC 1 and 2
+plot(project.pca$x, type="n", main="Principal components analysis plot", xlab=paste("PC1, ", round(project.pca.proportionvariances[1], 2), "%"), ylab=paste("PC2, ", round(project.pca.proportionvariances[2], 2), "%"))
+points(project.pca$x, col=colData$symptomes, pch=16, cex=2.5)
+head(project.pca$x)
+legend("topleft",legend=colData$symptomes,
+       col=c("red", "blue"), lty=1:2, cex=0.8)
+PCAscores<-project.pca$x
+PCAcolors <- c("black","blue","magenta")[as.integer(colData$symptomes)]
+tiff(file="PCA_mirna.tiff",
+width=7, height=7, units="in", res=100)
+p<-plot(PCAscores[,1:2],  # x and y data
+     pch=21,           # point shape
+     col=PCAcolors,    # point border color
+     bg=PCAcolors,     # point color
+     cex=2.5,          # point size
+     main="PCA plot miRNA expression",    # title of plot
+     xlab=paste("PC1, ", round(project.pca.proportionvariances[1], 2), "%"),  ylab=paste("PC2, ", round(project.pca.proportionvariances[2], 2), "%"),
+     cex.lab=1.5
+)
+legend("topright",                                # position of legend
+       legend=c("Controls","Remission","Exacerbation"),                       # legend display
+       pch=21,                                    # point shape
+       pt.bg= c("black","blue","magenta"),    # point colors
+       pt.cex=1.5,                                # point size
+       col =  c("black","blue","magenta")  )  # point border color
+
+ggsave("PCA_plot_miRNA.tiff",p,"tiff",dpi=300)
+dev.off()
+```
+```{r,fig.width=6.5,fig.height=7.2}
+library(ggrepel)
+genes<-as.data.frame(resS)
+resS$gene<-rownames(resS)
+genes$Significant <- ifelse(genes$padj < 0.05, "FDR < 0.05", "Not Sig")
+p<-ggplot(genes, aes(x = log2FoldChange, y = -log10(pvalue))) + geom_point(aes(color = Significant,size=10)) + scale_color_manual(values = c("red", "grey")) + theme_bw(base_size = 11) + theme(legend.position = "bottom",axis.title = element_text(size = 20)) +
+geom_text_repel(
+    data = subset(genes, padj < 0.05),
+    aes(label= rownames(subset(genes, padj < 0.05)),size = 10,force=5,box.padding = unit(2, "lines"), point.padding = unit(2, "lines")))
+p <- p + ggtitle("Volcano Plot exacerbation vs. cotrols")+theme(text = element_text(size = 20))
+p
+ggsave("volcano_SvC.tiff",p,device="tiff",dpi=300)
+
+genes<-as.data.frame(resSvA)
+resSvA$gene<-rownames(resSvA)
+genes$Significant <- ifelse(genes$padj < 0.05, "FDR < 0.05", "Not Sig")
+p<-ggplot(genes, aes(x = log2FoldChange, y = -log10(pvalue))) + geom_point(aes(color = Significant,size=10)) + scale_color_manual(values = c("red", "grey")) + theme_bw(base_size = 11) + theme(legend.position = "bottom",axis.title = element_text(size = 20)) +
+geom_text_repel(
+    data = subset(genes, padj < 0.05),
+    aes(label= rownames(subset(genes, padj < 0.05)),size = 10,
+    box.padding = unit(0.35, "lines"),
+    point.padding = unit(0.3, "lines")))
+p <- p + ggtitle("Volcano Plot exacerbation vs. remission")+theme(text = element_text(size = 20))
+p
+ggsave("volcano_SvA.tiff",p,device="tiff",dpi=300)
+
+genes<-as.data.frame(resA)
+resA$gene<-rownames(resA)
+genes$Significant <- ifelse(genes$padj < 0.05, "FDR < 0.05", "Not Sig")
+p<-ggplot(genes, aes(x = log2FoldChange, y = -log10(pvalue))) + geom_point(aes(color = Significant,size=10)) + scale_color_manual(values = c("red", "grey")) + theme_bw(base_size = 11) + theme(legend.position = "bottom",axis.title = element_text(size = 20)) +
+geom_text_repel(
+    data = subset(genes, padj < 0.05),
+    aes(label= rownames(subset(genes, padj < 0.05)),size = 10,
+    box.padding = unit(0.35, "lines"),
+    point.padding = unit(0.3, "lines")))
+p <- p + ggtitle("Volcano Plot remission vs. cotrols")+theme(text = element_text(size = 20))
+p
+ggsave("volcano_AvC.tiff",p,device="tiff",dpi=300)
+
+#MA-plots
+p<-ggmaplot(as.data.frame(resS), main = expression("MA-Plot exacerbation vs. controls"),
+   fdr = 0.05,fc=0.0, size = 5,
+   palette = c("#B31B21", "#1465AC", "darkgray"),
+   genenames = as.vector(resS$name),
+   legend = "top",
+   font.label = c("bold", 13),
+   font.legend = "bold",
+   font.main = "bold",
+   select.top.method = c("padj","fc"),
+   ggtheme = ggplot2::theme_minimal())
+q<-p+theme(text = element_text(size = 20)) 
+ggsave("MAplot_SvC.tiff",q,device="tiff",dpi=300)
+q
+
+p<-ggmaplot(resA, main = expression("MA-Plot remission vs. controls"),
+   fdr = 0.05,fc = 0.0, size = 5,
+   palette = c("#B31B21", "#1465AC", "darkgray"),
+   genenames = as.vector(resS$name),
+   legend = "top", top = 8,
+   font.label = c("bold", 13),
+   font.legend = "bold",
+   font.main = "bold",
+  select.top.method = c("padj","fc"),
+   ggtheme = ggplot2::theme_minimal())
+q<-p+theme(text = element_text(size = 20)) 
+ggsave("MAplot_AvC.tiff",q,device="tiff",dpi=300)
+q
+
+p<-ggmaplot(resSvA, main = expression("MA-Plot exacerbation vs. remission"),
+   fdr = 0.05, fc = 0.0, size = 5,
+   palette = c("#B31B21", "#1465AC", "darkgray"),
+   genenames = as.vector(resS$name),
+   legend = "top", top = 8,
+   font.label = c("bold", 13),
+   font.legend = "bold",
+   font.main = "bold",
+    select.top.method = c("padj","fc"),
+   ggtheme = ggplot2::theme_minimal())
+q<-p+theme(text = element_text(size = 20)) 
+ggsave("MAplot_SvA.tiff",q,device="tiff",dpi=300)
+q
+
+p<-ggplot(as.data.frame(resS), aes(x=pvalue)) + 
+  geom_histogram(color="black", fill="grey")+ theme_classic()+
+  ggtitle("Exacerbation vs. Controls")
+q<-p+ theme(text = element_text(size = 20)) 
+ggsave("Screeplot_SvC.tiff",q,device="tiff",dpi=300)
+q
+
+p<-ggplot(as.data.frame(resA), aes(x=pvalue)) + 
+  geom_histogram(color="black", fill="grey")+ theme_classic()+
+  ggtitle("Remission vs. Controls")
+q<-p+ theme(text = element_text(size = 20)) 
+ggsave("Screeplot_AvC.tiff",q,device="tiff",dpi=300)
+q
+
+p<-ggplot(as.data.frame(resSvA), aes(x=pvalue)) + 
+  geom_histogram(color="black", fill="grey")+ theme_classic()+
+  ggtitle("Exacerbation vs. Remission")
+q<-p+ theme(text = element_text(size = 20)) 
+ggsave("Screeplot_SvA .tiff",q,device="tiff",dpi=300)
+q
+
+```
+
+```{r,fig.width=8.3,fig.height=8.1}
+#extract differentially expressed genes/miRNAs:
+
+#get all differentially expressed miRNAs:
+duprows <- which(!is.na(match(rownames(sigS),rownames(sigA))))
+sigComb<-rbind(sigA,sigS[-duprows,])
+duprows <- which(!is.na(match(rownames(sigComb),rownames(sigSvA))))
+sigComb<-rbind(sigSvA,sigComb[-duprows,])
+print(sigComb)
+str(sigComb)
+rownames(sigComb)
+sigComb<-sigComb[-12,]
+sigComb<-sigComb[-12,]
+rownames(sigComb)
+sigComb$S_C<-ifelse(rownames(sigComb) %in% rownames(sigS),1,0)
+sigComb$A_C<-ifelse(rownames(sigComb) %in% rownames(sigA),1,0)
+sigComb$S_A<-ifelse(rownames(sigComb) %in% rownames(sigSvA),1,0)
+
+rlog<-rlog(dds2,blind=FALSE)
+SvCrlog<-subset(rlog,rownames(rlog) %in% rownames(sigComb))
+dim(SvCrlog)
+SvCrlog
+str(SvCrlog)
+assay(SvCrlog)
+dfrlogS<-as.matrix(assay(SvCrlog))
+colnames(dfrlogS)
+colnames(dfrlogS)<-c("Control1","Control2","Control3","Control4","Control5","Control6","Control7","Control8","Asymptomatic1","Asymptomatic2","Asymptomatic3","Asymptomatic4","Asymptomatic5","Symptomatic1","Symptomatic2","Symptomatic3","Symptomatic4","Symptomatic5","Symptomatic6")
+#colnames(assay(SvCrlog))<-c("Control1","Control2","Control3","Control4","Control5","Control6","Control7","Control8","Asymptomatic1","Asymptomatic2","Asymptomatic3","Asymptomatic4","Asymptomatic5","Symptomatic1","Symptomatic2","Symptomatic3","Symptomatic4","Symptomatic5","Symptomatic6")
+str(dfrlogS)
+#"#68EC32", "black", "#fc4fba"
+color.palette  <- c("#F8F8F8", colorRampPalette(c("#46f200", "black", "#ff009d"))(n=70))
+library(gplots)
+col_ann<-c(rep("#009E73",8),rep("#E69F00",5),rep("#CC79A7",6))
+col_ann_2<-c(rep("grey",8),rep("gray43",5),rep("black",6))
+
+
+sessionInfo()
+
+```
