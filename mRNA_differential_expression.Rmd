@@ -1,6 +1,6 @@
 ---
 title: "Streamlined mRNA DE Lung tissue"
-author: "Matthias Hulliger"
+author: "Matthias Kraft"
 date: "5/6/2020"
 output: html_document
 ---
@@ -48,7 +48,7 @@ multiplot <- function(..., plotlist=NULL, file, cols=1, layout=NULL) {
 #Loading phenotype data
 ```{r}
 library(DESeq2)
-colData<-read.table("colData7.txt",header = T)
+colData<-read.table("colData8.txt",header = T)
 colData$Extraction_batch<-as.factor(colData$Extraction_batch)
 colData$gelding<-as.factor(colData$gelding)
 colData$symptomes<-relevel(colData$symptomes,"none","Asymptomatic","Symptomatic")
@@ -90,6 +90,7 @@ dds<-DESeq2Table
  summary(sigA)
  head(sigA[order(sigA$padj),])
  sigAord<-sigA[order(abs(sigA$log2FoldChange),decreasing=T),]
+sigAordpvalue<-sigA[order(abs(sigA$pvalue),decreasing=F),]
  head(sigAord,n=11)
  rownames(sigAord)
  write.table(rownames(sigAord),"DEgenes_AvC.txt",quote = F)
@@ -99,6 +100,7 @@ dds<-DESeq2Table
  sigSvA<-subset(resSvA,resSvA$padj<0.05)
 summary(sigSvA)
  sigSvAord<-sigSvA[order(abs(sigSvA$log2FoldChange),decreasing=T),]
+  sigSvAordpvalue<-sigSvA[order(abs(sigSvA$pvalue),decreasing=F),]
  head(sigSvAord,n=11)
  rownames(sigSvAord)
  write.table(rownames(sigSvAord),"DEgenes_SvA.txt",quote = F)
@@ -239,6 +241,9 @@ p2<-ggplot(S_up, aes(x = reorder(row.names(S_up),S_up$log2FoldChange), S_up$log2
   plot_grid(p1, p2,align="h",rel_widths = c(1,1.3))
   p<-plot_grid(p1, p2,align="h",rel_widths = c(1,1.3))
  ggsave("EvRlogPlot.tiff",p,device="tiff",dpi=300)
+#plotLogFold(sigSord,20,1,1.15)
+#plotLogFold(sigAord,15,1,0.95)
+#plotLogFold(sigSvAord,20,1.6,1)
 
  
 sessionInfo()
@@ -258,10 +263,88 @@ mRNA_norm_counts<-counts(dds,normalized=TRUE)
 str(mRNA_norm_counts)
 write.table(mRNA_norm_counts,"mRNA_norm_counts.txt")
 
+```
+#PCA
+
+```{r,fig.width=9,fig.height=7}
+rld<-rlog(dds)
+pcaData <- plotPCA(rld, intgroup="symptomes", returnData=TRUE,ntop=500)
+percentVar <- round(100 * attr(pcaData, "percentVar"))
+p<-ggplot(pcaData, aes(PC1, PC2, colour=symptomes)) +
+  geom_point(size=8) +
+  xlab(paste0("PC1: ",percentVar[1],"% variance")) +
+  ylab(paste0("PC2: ",percentVar[2],"% variance"))
+p<-p+theme(text = element_text(size = 24), legend.title = element_blank())
+p<-p+ scale_colour_discrete(labels=c("Controls", "Remission","Exacerbation"))
+print(p)
+labels<-rownames(pcaData)
+labels<-sub("Can", "", labels)
+labels<-sub("s", "", labels)
+print(labels)
+ q<-p+ scale_colour_brewer(palette="Dark2")+geom_text(aes(label=labels),hjust=0, vjust=2.2)
+ q<-q+ scale_colour_discrete(labels=c("Controls", "Remission","Exacerbation"))
+ ggsave("PCA_new_mRNA1.tiff",q,device="tiff",dpi=300)
+ q
+  r<-p+ scale_colour_brewer(palette="Dark2")+geom_text(aes(label=labels),hjust=-1.1, vjust=2.2)
+   r<-r+ scale_colour_discrete(labels=c("Controls", "Remission","Exacerbation"))
+  ggsave("PCA_new_mRNA2.tiff",r,device="tiff",dpi=300)
+  r
+  rld<-rlog(dds)
+pcaData <- plotPCA(rld, intgroup="symptomes", returnData=TRUE,ntop=500)
+percentVar <- round(100 * attr(pcaData, "percentVar"))
+p<-ggplot(pcaData, aes(PC1, PC2, color=symptomes)) +
+  geom_point(size=8) +
+  xlab(paste0("PC1: ",percentVar[1],"% variance")) +
+  ylab(paste0("PC2: ",percentVar[2],"% variance"))
+p<-p+theme(text = element_text(size = 24), legend.title = element_blank())
+p<-p+ scale_colour_discrete(labels=c("Controls", "Remission","Exacerbation"))
+print(p)
+labels<-rownames(pcaData)
+labels<-sub("Can", "", labels)
+labels<-sub("s", "", labels)
+print(labels)
+ q<-p+ scale_colour_brewer(palette="Dark2")+geom_text(aes(label=labels),hjust=0, vjust=2.2)
+ q<-q+ scale_colour_discrete(labels=c("Controls", "Remission","Exacerbation"))
+ ggsave("PCA_new_mRNA3.tiff",q,device="tiff",dpi=300)
+ q
+  r<-p+ scale_colour_brewer(palette="Dark2")+geom_text(aes(label=labels),hjust=-1.1, vjust=2.2)
+   r<-r+ scale_colour_discrete(labels=c("Controls", "Remission","Exacerbation"))
+  ggsave("PCA_new_mRNA4.tiff",r,device="tiff",dpi=300)
+  r
+
+rld<-rlog(dds)
+pcaData <- plotPCA(rld, intgroup="symptomes", returnData=TRUE,ntop=500)
+percentVar <- round(100 * attr(pcaData, "percentVar"))
+p<-ggplot(pcaData, aes(PC1, PC2, color=symptomes)) +
+  geom_point(size=8) +
+  xlab(paste0("PC1: ",percentVar[1],"% variance")) +
+  ylab(paste0("PC2: ",percentVar[2],"% variance"))
+p<-p+theme(text = element_text(size = 24))
+print(p)
+labels<-rownames(pcaData)
+labels<-sub("Can", "", labels)
+labels<-sub("s", "", labels)
+print(labels)
+p+ scale_color_brewer(palette="Dark2")+geom_text(aes(label=labels),hjust=1, vjust=-1)
+p+ scale_color_brewer(palette="Dark2")+geom_text(aes(label=labels),hjust=-1, vjust=-1)
+p+ scale_color_brewer(palette="Dark2")+geom_text(aes(label=labels),hjust=0, vjust=-2)
+p+ scale_color_brewer(palette="Dark2")+geom_text(aes(label=labels),hjust=0, vjust=-1)
+p+ scale_color_brewer(palette="Dark2")+geom_text(aes(label=labels),hjust=0, vjust=2.2)
+x<-p+ scale_color_brewer(palette="Dark2")+geom_text(aes(label=labels),hjust=0, vjust=2.2)
+ggsave("PCA_new_mRNA5.tiff",x,device="tiff",dpi=300)
+x
+y<-p+ scale_color_brewer(palette="Dark2")+geom_text(aes(label=labels),hjust=-1.1, vjust=2.2)
+ggsave("PCA_new_mRNA6.tiff",y,device="tiff",dpi=300)
+ y
+plotPCA(rld,intgroup="Extraction_batch")
+plotPCA(rld,intgroup="Extraction_batch",ntop=6000)
+
+
+boxplot(log10(assays(dds)[["cooks"]]), range=0, las=2)
 
 
 ```
-
+```{r,fig.width=5,fig.height=6}
 #plot top 10 up and down in each group:
 name<-"Boxplots_counts_DEG"
 ending<-".pdf"
@@ -283,8 +366,118 @@ filename<-paste(name,mirna,ending,sep="")
 #print(mirna_counts)
 print(p)}
 #ggsave(filename,p)}
+
+
 ```
 
+Prepare IPA input:
+
+```{r,fig.width=10,fig.height=6}
+#Symptomatic vs Control comparison; IPA input
+S<-cbind(sigS$log2FoldChange,sigS$padj)
+rownames(S)<-rownames(sigS)
+S<-as.data.frame(S)
+head(S)
+#S$FoldChange<-2^S[,1]
+#R<-cbind(S[,3],S[,2])
+colnames(S)<-c("FoldChange","padj")
+rownames(S)<-rownames(sigS)
+head(S)
+dim(S)
+conversion_table<-read.table("/Users/matthias/Downloads/modified_coversion_unique.txt",header=T)
+head(conversion_table)
+dim(conversion_table)
+conversion_table<-as.data.frame(conversion_table)
+
+
+#Select relevant rows from expression matrix:
+mRNA_SvC<-S[rownames(S) %in% conversion_table[,2],]
+dim(mRNA_SvC)
+head(mRNA_SvC)
+rownames(mRNA_SvC)
+#Convert from human to horse IDs
+test<-conversion_table$Human_gene_name[match(rownames(mRNA_SvC),conversion_table[,2])]
+rownames(mRNA_SvC)<-test
+head(mRNA_SvC)
+rownames(mRNA_SvC)
+write.table(mRNA_SvC,"IPA_mRNA_SvC.txt",quote=F,sep='\t')
+
+
+#Asymptomatic vs Control comparison; IPA input
+S<-cbind(sigA$log2FoldChange,sigA$padj)
+rownames(S)<-rownames(sigA)
+S<-as.data.frame(S)
+head(S)
+#S$FoldChange<-2^S[,1]
+#R<-cbind(S[,3],S[,2])
+colnames(S)<-c("FoldChange","padj")
+rownames(S)<-rownames(sigA)
+head(S)
+dim(S)
+conversion_table<-read.table("/Users/matthias/Downloads/conversion_asymptomatic.txt",header=T)
+head(conversion_table)
+dim(conversion_table)
+conversion_table<-as.data.frame(conversion_table)
+
+
+#Select relevant rows from expression matrix:
+mRNA_SvC<-S[rownames(S) %in% conversion_table[,2],]
+dim(mRNA_SvC)
+head(mRNA_SvC)
+rownames(mRNA_SvC)
+#Convert from human to horse IDs
+test<-conversion_table$Human_gene_name[match(rownames(mRNA_SvC),conversion_table[,2])]
+rownames(mRNA_SvC)<-test
+head(mRNA_SvC)
+rownames(mRNA_SvC)
+write.table(mRNA_SvC,"IPA_mRNA_AvC.txt",quote=F,sep='\t')
+
+#Sympto vs Asympto comparison; IPA input
+S<-cbind(sigSvA$log2FoldChange,sigSvA$padj)
+rownames(S)<-rownames(sigSvA)
+S<-as.data.frame(S)
+head(S)
+#S$FoldChange<-2^S[,1]
+#R<-cbind(S[,3],S[,2])
+colnames(S)<-c("FoldChange","padj")
+rownames(S)<-rownames(sigSvA)
+head(S)
+dim(S)
+write.table(S,"IPA_mRNA_SvA.txt",quote=F,sep='\t')
+#disgenet values
+asthmagenes<-c("SLC26A4","ACKR1","IL13RA2","GSTA1","HDC","LTB4R","IL11","CCL19","CXCL6","WIF1","HTR2A","ABCB1","CXCL6","TNFRSF1A","IL1R2","SPP1","SERPINB2","RETN","SCD","FBXO8","CDIP1","IGFBP3","S100A12","TNFRSF8","CYP1A1","ITGB3","IL4R","MS4A2","NOS3","VDR","FCER1A","CCL24","NPY")
+x <- subset(resS, rownames(resS) %in% asthmagenes)
+write.table(x,"disgenet_expression.csv")
+
+resS["NOS2",]
+resA["NOS2",]
+resSvA["NOS2",]
+resSvA["ESR1",]
+
+
+resS["ADAM17",]
+resA["ADAM17",]
+resSvA["ADAM17",]
+
+#macrophage M2 markers
+resS["IL10",]
+resS["IL2RA",]
+resS["IL10",]
+resS["CD163",]
+resA["IL10",]
+resA["CD163",]
+resSvA["IL10",]
+resSvA["CD163",]
+resS["CXCL8",]
+resA["CXCL8",]
+resSvA["CXCL8",]
+
+#th1
+resS["CCL17",]
+
+
+
+```
 
 ```{r,fig.width=8,fig.height=8}
 vsd <- vst(dds, blind=FALSE)
@@ -334,9 +527,27 @@ legend("topright",                                # position of legend
        pt.cex=1.5,                                # point size
        col =  c("black","blue","magenta")  )  # point border color
 dev.off()
-
+#Volcano Plots
+# resS$sig <- -log10(resS$padj)
+# cols <- densCols(resS$log2FoldChange, resS$sig)
+# resS$pch <- 19
+# resS$pch[resS$pvalue ==0] <- 6
+# plot(resS$log2FoldChange, 
+#     resS$sig, 
+#      col=cols, panel.first=grid(),
+#      main="Volcano plot", 
+#      xlab="Effect size: log2(fold-change)",
+#      ylab="-log10(adjusted p-value)",
+#      pch=resS$pch, cex=1.5)
+# abline(v=0)
+# abline(h=-log10(0.05), col="brown")
+# #Add labels
+# gn.selected <-  (resS$padj < 0.05)
+# text(resS$log2FoldChange[gn.selected],
+#      -log10(resS$padj)[gn.selected],
+#      lab=rownames(resS)[gn.selected ], cex=0.6,cex.lab=1.5)
 ```
-```{r,fig.width=6.5,fig.height=7.2}
+```{r,fig.width=9,fig.height=10}
 library(ggrepel)
 genes<-as.data.frame(resS)
 resS$gene<-rownames(resS)
@@ -345,6 +556,21 @@ p<-ggplot(genes, aes(x = log2FoldChange, y = -log10(pvalue))) + geom_point(aes(c
 p <- p + labs(title = "Volcano Plot exacerbation vs. controls")+theme(text = element_text(size = 20))
 p
 ggsave("volcano_SvC.tiff",p,device="tiff",dpi=300)
+#trying out plotting some labels
+#subSvC<-head(subset(as.data.frame(resS), padj < 0.05),n=20)
+
+
+genes<-as.data.frame(head(sigSordpvalue, n=45))
+p<-p+geom_text_repel(
+    data = subset(genes, padj < 0.05),
+    aes(label= rownames(genes),size = 10,
+    box.padding = unit(0.35, "lines"),
+    point.padding = unit(0.3, "lines")))
+p
+ggsave("volcano_SvC.tiff",p,device="tiff",dpi=300)
+
+  
+
 
 
 genes<-as.data.frame(resSvA)
@@ -352,58 +578,84 @@ resSvA$gene<-rownames(resSvA)
 genes$Significant <- ifelse(genes$padj < 0.05, "FDR < 0.05", "Not Sig")
 p<-ggplot(genes, aes(x = log2FoldChange, y = -log10(pvalue))) + geom_point(aes(color = Significant,size=10)) + scale_color_manual(values = c("red", "grey")) + theme_bw(base_size = 11) + theme(legend.position = "bottom",axis.title = element_text(size = 20)) 
 p <- p + labs(title = "Volcano Plot exacerbation vs. remission")+theme(text = element_text(size = 20))
+
+
+genes<-as.data.frame(head(sigSvAordpvalue, n=36))
+p<-p+geom_text_repel(
+    data = subset(genes, padj < 0.05),
+    aes(label= rownames(genes),size = 10,
+    box.padding = unit(0.35, "lines"),
+    point.padding = unit(0.3, "lines")))
 p
 ggsave("volcano_SvA.tiff",p,device="tiff",dpi=300)
+
 
 genes<-as.data.frame(resA)
 resA$gene<-rownames(resA)
 genes$Significant <- ifelse(genes$padj < 0.05, "FDR < 0.05", "Not Sig")
 p<-ggplot(genes, aes(x = log2FoldChange, y = -log10(pvalue))) + geom_point(aes(color = Significant,size=10)) + scale_color_manual(values = c("red", "grey")) + theme_bw(base_size = 11) + theme(legend.position = "bottom",axis.title = element_text(size = 20))
-p <- p + ggtitle("Volcano Plot remission vs. cotrols")+theme(text = element_text(size = 20))
+p <- p + ggtitle("Volcano Plot remission vs. controls")+theme(text = element_text(size = 20))
+
+genes<-as.data.frame(head(sigAordpvalue, n=43))
+p<-p+geom_text_repel(
+    data = subset(genes, padj < 0.05),
+    aes(label= rownames(genes),size = 10,
+    box.padding = unit(0.35, "lines"),
+    point.padding = unit(0.3, "lines")))
 p
 ggsave("volcano_AvC.tiff",p,device="tiff",dpi=300)
-
 library(dplyr)
  resS$gene<-NULL
  head(resS)
 #MA-plots
+```
 
+```{r,fig.width=9.7,fig.height=10.8}
 p<-ggmaplot((as.data.frame(resS)), main = expression("MA-Plot exacerbation vs. controls"),
-   fdr = 0.05,fc=0.0, size = 4, top = 0,
-   palette = c("#B31B21", "#1465AC", "gray"),legend = "top", 
+   fdr = 0.05,fc=0.0, size = 4, top = 80,
+   genenames = as.vector(sigSord$name),
+   palette = c("#B31B21", "#1465AC", "gray"),
+   legend = "top", 
+   font.label = c("bold", 13),
+   font.legend = "bold",
+   font.main = "bold",
+  select.top.method = "fc",
    ggtheme = ggplot2::theme_minimal())
 q<-p+theme(text = element_text(size = 20))
 q
 ggsave("MAplot_SvC.tiff",q,device="tiff",dpi=300)
 
+
+
 p<-ggmaplot(resA, main = expression("MA-Plot remission vs. controls"),
-   fdr = 0.05,fc = 0.0, size = 4, top = 0,
+   fdr = 0.05,fc = 0.0, size = 4, top = 25,
    palette = c("#B31B21", "#1465AC", "gray"),
-   genenames = as.vector(resS$name),
+   genenames = as.vector(sigAord$name),
    legend = "top", 
    font.label = c("bold", 13),
    font.legend = "bold",
    font.main = "bold",
-  select.top.method = c("padj","fc"),
+  select.top.method = "fc",
    ggtheme = ggplot2::theme_minimal())
 q<-p+theme(text = element_text(size = 20))
 ggsave("MAplot_AvC.tiff",q,device="tiff",dpi=300)
 q
 
 p<-ggmaplot(resSvA, main = expression("MA-Plot exacerbation vs. remission"),
-   fdr = 0.05, fc = 0.0,size = 4, top = 0,
+   fdr = 0.05, fc = 0.0,size = 4, top = 85,
    palette = c("#B31B21", "#1465AC", "gray"),
-   genenames = as.vector(resS$name),
+   genenames = as.vector(sigSvAord$name),
    legend = "top",
    font.label = c("bold", 13),
    font.legend = "bold",
    font.main = "bold",
    alpha = 0.01,
-    select.top.method = c("padj","fc"),
+    select.top.method = "fc",
    ggtheme = ggplot2::theme_minimal())
 q<-p+theme(text = element_text(size = 20)) 
 ggsave("MAplot_SvA.tiff",q,device="tiff",dpi=300)
 q
+
 
 p<-ggplot(as.data.frame(resS), aes(x=pvalue)) + 
   geom_histogram(color="black", fill="grey")+ theme_classic()+
@@ -425,7 +677,66 @@ p<-ggplot(as.data.frame(resSvA), aes(x=pvalue)) +
 q<-p+ theme(text = element_text(size = 20)) 
 ggsave("pvalhist_SvA.tiff",q,device="tiff",dpi=300)
 q
+
+```
+
+```{r,fig.width=8,fig.height=15}
+rld <- rlog(dds)
+pcaData <- plotPCA(rld, intgroup="symptomes", returnData=TRUE,ntop=500)
+percentVar <- round(100 * attr(pcaData, "percentVar"))
+p<-ggplot(pcaData, aes(PC1, PC2, color=symptomes)) +
+  geom_point(size=3) +
+  xlab(paste0("PC1: ",percentVar[1],"% variance")) +
+  ylab(paste0("PC2: ",percentVar[2],"% variance")) + 
+  coord_fixed()
+print(p)
 ```
 
 
+```{r,fig.width=8,fig.height=8}
+
+plotPCA(vsd, intgroup="symptomes")
+vsd <- vst(dds, blind=FALSE)
+mat<-assay(vsd)
+project.pca <- prcomp(t(mat))
+summary(project.pca)
+project.pca.proportionvariances <- ((project.pca$sdev^2) / (sum(project.pca$sdev^2)))*100
+#Plots scatter plot for PC 1 and 2
+plot(project.pca$x, type="n", main="Principal components analysis plot; miRNA expression",xlab=paste("PC1, ", round(project.pca.proportionvariances[1], 2), "%"), ylab=paste("PC2, ", round(project.pca.proportionvariances[2], 2), "%"),cex=1.3,cex.lab=1.3)
+points(project.pca$x, col=c("#000000","#009E73","#CC79A7"), pch=16, cex=3.5)
+legend("topright", legend = levels(colData$symptomes), pch=16,title="Condition",col=c("#000000","#009E73","#CC79A7"),cex=1.5)
+library(limma)
+vsd <- varianceStabilizingTransformation(dds)
+mat<-assay(vsd)
+project.pca <- prcomp(t(mat))
+summary(project.pca)
+project.pca.proportionvariances <- ((project.pca$sdev^2) / (sum(project.pca$sdev^2)))*100
+barplot(project.pca.proportionvariances, cex.names=1, xlab=paste("Principal component (PC), 1-", length(project.pca$sdev)), ylab="Proportion of variation (%)", main="Scree plot", ylim=c(0,100))
+#Plots scatter plot for PC 1 and 2
+plot(project.pca$x, type="n", main="Principal components analysis plot", xlab=paste("PC1, ", round(project.pca.proportionvariances[1], 2), "%"), ylab=paste("PC2, ", round(project.pca.proportionvariances[2], 2), "%"))
+points(project.pca$x, col=colData$symptomes, pch=16, cex=2.5)
+head(project.pca$x)
+legend("topleft",legend=colData$symptomes,
+       col=c("red", "blue"), lty=1:2, cex=0.8)
+PCAscores<-project.pca$x
+PCAcolors <- c("black","blue","magenta")[as.integer(colData$symptomes)]
+tiff(file="PCA_mrna.tiff",
+width=7, height=7, units="in", res=100)
+p<-plot(PCAscores[,1:2],  # x and y data
+     pch=21,           # point shape
+     col=PCAcolors,    # point border color
+     bg=PCAcolors,     # point color
+     cex=2.5,          # point size
+     main="PCA plot mRNA expression",    # title of plot
+     xlab=paste("PC1, ", round(project.pca.proportionvariances[1], 2), "%"),  ylab=paste("PC2, ", round(project.pca.proportionvariances[2], 2), "%"),
+     cex.lab=1.5
+)
+legend("topright",                                # position of legend
+       legend=c("Controls","Remission","Exacerbation"),                       # legend display
+       pch=21,                                    # point shape
+       pt.bg= c("black","blue","magenta"),    # point colors
+       pt.cex=1.5,                                # point size
+       col =  c("black","blue","magenta")  )  # point border color
+dev.off()
 ```
+
